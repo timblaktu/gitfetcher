@@ -1,0 +1,56 @@
+services:
+  gitfetcher:
+    container_name: gitfetcher
+    pull_policy: build
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM alpine:3.21.2
+        RUN apk add --no-cache git \
+          && addgroup -S -g $_GID $CONTAINER_USER \
+          && adduser -S -u $_UID -G $CONTAINER_USER $CONTAINER_USER
+        USER $_UID:$_GID
+        WORKDIR /home/$CONTAINER_USER/gitfetcher
+        # alpine's default ENTRYPOINT is empty, just use runtime cmd
+    user: $_UID:$_GID
+    restart: unless-stopped
+    volumes:
+      - $HOST_DIR:/home/$CONTAINER_USER/gitfetcher
+    environment:
+      REPO_URL: $REPO_URL
+    command:
+      - /bin/sh
+      - '-c'
+      - |
+        while true; do
+          if find -- $GIT_DIR -prune -type d -empty | grep -q '^'
+          then
+            echo "Cloning $REPO_URL into empty dir $GIT_DIR.."
+            git clone https://$$(cat /run/secrets/repo_access_token)@$${REPO_URL#https:\/\/} $GIT_DIR
+          else
+            cd $GIT_DIR
+            if RPOUT=$$(git rev-parse --short HEAD 2>&1)
+            then
+              if [ -n "$$(git fetch --dry-run 2>&1)" ]
+              then
+                echo "Found git repo in $GIT_DIR at rev $$RPOUT. Fetching new commits.."
+                { git fetch -q && git reset -q HEAD --hard && git merge '@{u}'; } | sed 's/^/    /'
+              else
+                echo "Found git repo in $GIT_DIR at rev $$RPOUT. No commits to fetch."
+              fi
+            else
+              echo "ERROR  $GIT_DIR is not empty but is not a git repo:"
+              echo "$$RPOUT" | sed 's/^/ERROR      /'
+              echo "ERROR  Going into deep sleep to prevent auto-restart; user must resolve issue."
+              echo "ERROR  Either change HOST_DIR in .env file, or delete/move its contents:"
+              ls -la $GIT_DIR | sed 's/^/ERROR          /'
+              sleep 99999999
+            fi
+          fi
+          sleep $POLLING_INTERVAL_SECONDS
+        done
+    secrets:
+      - repo_access_token
+secrets:
+  repo_access_token:
+    file: $HOST_REPO_ACCESS_TOKEN_PATH
