@@ -26,11 +26,11 @@ The following named secrets are shared with container services using [docker com
 
 ## repo_access_token
 
-This is a personal access token authorizing read access to the git repo specified by $REPO_URL.
+This is a personal access token authorizing read access to the git repo specified by `$REPO_URL`.
 
-The user places the value of this secret alone in file $HOST_REPO_ACCESS_TOKEN_PATH with access restricted to the host user that will be running docker compose.
+The user places the value of this secret alone in file `$HOST_REPO_ACCESS_TOKEN_PATH` with access restricted to the host user that will be running docker compose.
 
-The secret value is read by the container user (who has same uid/gid as host user) and embedded in the $REPO_URL for anonymous access, e.g.:
+The secret value is read by the container user (who has same uid/gid as host user) and embedded in the `$REPO_URL` for anonymous access, e.g.:
 
-  https://<token>@some.git.service/org/repo.git
+  https://TOKEN@some.git.service/org/repo.git
 
